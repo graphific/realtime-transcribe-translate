@@ -1,0 +1,212 @@
+/* Floating widget styles */
+#transcription-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 350px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+}
+
+.widget-header {
+  background: #2196F3;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: move;
+  user-select: none;
+}
+
+.widget-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.widget-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #FF5252;
+  margin: 0 8px;
+}
+
+.widget-status.connected {
+  background: #4CAF50;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.widget-minimize {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.widget-minimize:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.widget-content {
+  background: white;
+  border-radius: 0 0 8px 8px;
+}
+
+.transcription-display {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.waiting-message {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+  margin: 0;
+}
+
+.transcription-item {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.transcription-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.transcription-time {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.transcription-text {
+  color: #333;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.transcription-translation {
+  color: #666;
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.4;
+  padding-left: 12px;
+  border-left: 2px solid #E3F2FD;
+  margin-top: 4px;
+}
+
+.lang-tag {
+  display: inline-block;
+  background: #E3F2FD;
+  color: #1976D2;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-right: 6px;
+  text-transform: uppercase;
+}
+
+.widget-controls {
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.widget-btn {
+  flex: 1;
+  min-width: 70px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.widget-btn:hover {
+  background: #f5f5f5;
+  border-color: #2196F3;
+  color: #2196F3;
+}
+
+.widget-btn.active {
+  background: #E3F2FD;
+  border-color: #2196F3;
+  color: #1976D2;
+}
+
+.widget-notification {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Platform-specific fixes */
+/* Google Meet */
+.meet-container #transcription-widget {
+  bottom: 80px; /* Above Meet controls */
+}
+
+/* Zoom */
+.zoom-container #transcription-widget {
+  bottom: 100px; /* Above Zoom controls */
+}
+
+/* Teams */
+.teams-container #transcription-widget {
+  right: 340px; /* Avoid Teams sidebar */
+}
