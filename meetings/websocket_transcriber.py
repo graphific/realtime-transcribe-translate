@@ -113,13 +113,10 @@ class TranscriptionWebSocketServer:
             logger.error(f"Failed to start server: {e}")
             
     async def handle_client(self, websocket):
-        """Handle new client connections"""
-        # Get client info
-        try:
-            client_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-        except:
-            client_id = "unknown"
-            
+        """Handle new client connections with better error handling"""
+        client_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}" if websocket.remote_address else "unknown"
+        
+        # Add to clients set immediately
         self.clients.add(websocket)
         self.stats['total_connections'] += 1
         self.stats['clients_connected'] = len(self.clients)
@@ -143,16 +140,23 @@ class TranscriptionWebSocketServer:
                     await self._handle_client_message(websocket, data)
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid JSON from {client_id}: {message}")
+                except Exception as e:
+                    logger.error(f"Error handling message from {client_id}: {e}")
                     
         except websockets.exceptions.ConnectionClosed:
             logger.info(f"Client {client_id} disconnected normally")
+        except websockets.exceptions.InvalidMessage as e:
+            logger.warning(f"Invalid message from {client_id}: {e}")
+        except EOFError:
+            logger.warning(f"Client {client_id} connection ended unexpectedly")
         except Exception as e:
-            logger.error(f"Client {client_id} error: {e}")
+            logger.error(f"Unexpected error with client {client_id}: {e}")
         finally:
-            self.clients.remove(websocket)
+            # Always remove from clients set
+            self.clients.discard(websocket)
             self.stats['clients_connected'] = len(self.clients)
-            logger.info(f"❌ Client disconnected: {client_id} (Remaining: {len(self.clients)})")
-            
+            logger.info(f"❌ Client removed: {client_id} (Remaining: {len(self.clients)})")
+                
     async def _handle_client_message(self, websocket, data):
         """Handle messages from clients"""
         msg_type = data.get('type', '')
@@ -210,9 +214,12 @@ class TranscriptionWebSocketServer:
                 self.clients.discard(client)
                 
     async def _send_to_client(self, client, message, disconnected_list):
-        """Send message to a single client"""
+        """Send message to a single client with better error handling"""
         try:
-            await client.send(message)
+            await asyncio.wait_for(client.send(message), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Client send timeout - removing client")
+            disconnected_list.append(client)
         except websockets.exceptions.ConnectionClosed:
             disconnected_list.append(client)
         except Exception as e:
@@ -276,11 +283,31 @@ class WebSocketTranscriberMixin:
         logger.info("WebSocket server initialized")
         
     def broadcast_transcription(self, text, lang="unknown", translation=None, confidence=None):
-        """Broadcast transcription to connected clients"""
-        if hasattr(self, 'ws_server') and self.ws_server.is_running():
-            self.ws_server.broadcast_transcription(text, lang, translation, confidence)
-        else:
-            logger.warning("WebSocket server not initialized or not running")
+        """Send transcription to all connected clients with better error handling"""
+        if not self.clients or not self.loop:
+            logger.debug("No clients connected or loop not available")
+            return
+            
+        message = {
+            "type": "transcription",
+            "timestamp": datetime.now().isoformat(),
+            "text": text,
+            "language": lang,
+            "translation": translation,
+            "confidence": confidence
+        }
+        
+        # Send to all connected clients
+        self.stats['messages_sent'] += 1
+        
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self._broadcast(json.dumps(message)),
+                self.loop
+            )
+            logger.debug(f"Broadcasted transcription to {len(self.clients)} clients")
+        except Exception as e:
+            logger.error(f"Error broadcasting transcription: {e}")
             
     def cleanup_websocket(self):
         """Stop WebSocket server"""

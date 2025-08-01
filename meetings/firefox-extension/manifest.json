@@ -1,15 +1,15 @@
 {
   "manifest_version": 2,
   "name": "Live Transcription Assistant",
-  "version": "1.0",
-  "description": "Receives live transcriptions from local WebSocket server and helps insert them into web pages",
+  "version": "1.4.0",
+  "description": "Real-time transcription with floating widget for meeting platforms",
 
   "permissions": [
     "activeTab",
     "storage",
     "clipboardWrite",
-    "<all_urls>",
-    "tabs"
+    "tabs",
+    "notifications"
   ],
 
   "background": {
@@ -19,16 +19,25 @@
 
   "content_scripts": [
     {
-      "matches": ["*://meet.google.com/*", "*://zoom.us/*", "*://teams.microsoft.com/*", "<all_urls>"],
+      "matches": [
+        "*://meet.google.com/*",
+        "*://zoom.us/*", 
+        "*://teams.microsoft.com/*",
+        "*://*.teams.microsoft.com/*",
+        "*://teams.live.com/*",
+        "*://*.teams.live.com/*"
+      ],
       "js": ["content.js"],
       "css": ["style.css"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
 
   "browser_action": {
     "default_title": "Live Transcription Assistant",
-    "default_popup": "popup.html",
+    "default_popup": "",
+    "browser_style": false,
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
@@ -43,6 +52,7 @@
   },
 
   "web_accessible_resources": [
-    "style.css"
+    "style.css",
+    "popup.html"
   ]
 }
