@@ -1,0 +1,14 @@
+# Web framework
+flask==3.0.3
+flask-cors==4.0.0
+
+# HTTP client
+requests==2.31.0
+
+# Utilities
+python-dotenv==1.0.0
+
+# Development
+pytest==7.4.3
+black==23.11.0
+flake8==6.1.0

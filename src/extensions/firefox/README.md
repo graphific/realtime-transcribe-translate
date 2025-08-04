@@ -124,4 +124,6 @@ To install permanently:
 
 ## Security Note
 
-This extension only connects to localhost:8765. Never expose the WebSocket server to the internet!
+The extension connects to localhost:8765 which is bound to localhost only by default. Your transcriptions stay on your machine and are not accessible from the network.
+
+If you've modified the Docker configuration to allow network access, ensure you understand the security implications and implement appropriate authentication.

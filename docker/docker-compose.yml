@@ -1,0 +1,138 @@
+# Shared volume configuration
+x-common-volumes: &common-volumes
+  - ../data:/data
+  - whisper-models:/models/whisper
+  - huggingface-models:/models/huggingface
+  - torch-models:/models/torch
+
+# Shared environment
+x-common-env: &common-env
+  TZ: ${TZ:-UTC}
+  RECORDINGS_PATH: /data/recordings
+  TRANSCRIPTS_PATH: /data/transcripts
+  TRANSLATIONS_PATH: /data/translations
+
+services:
+  # LibreTranslate - Translation service
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-meeting-transcriber}-libretranslate
+    restart: ${RESTART_POLICY:-unless-stopped}
+    environment:
+      <<: *common-env
+      LT_LOAD_ONLY: ${LIBRETRANSLATE_LANGS:-en,pt}
+      LT_UPDATE_MODELS: ${LT_UPDATE_MODELS:-false}
+      LT_THREADS: ${LT_THREADS:-4}
+      LT_CHAR_LIMIT: ${LT_CHAR_LIMIT:-5000}
+      LT_DEBUG: ${LT_DEBUG:-false}
+    ports:
+      # Bind to localhost only - prevents external access
+      - "127.0.0.1:${LIBRETRANSLATE_PORT:-5000}:5000"
+    volumes:
+      - libretranslate-models:/home/libretranslate/.local
+    networks:
+      - transcriber-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/languages"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # API Server - Core transcription service
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+      args:
+        - WHISPER_MODEL=${WHISPER_MODEL:-base}
+        - CUDA_SUPPORT=${CUDA_SUPPORT:-cpu}
+    container_name: ${COMPOSE_PROJECT_NAME:-meeting-transcriber}-api
+    restart: ${RESTART_POLICY:-unless-stopped}
+    ports:
+      # Bind all ports to localhost only - critical for security
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+      - "127.0.0.1:${WEBSOCKET_PORT:-8765}:8765"
+      - "127.0.0.1:${WINDOWS_AUDIO_PORT:-8766}:8766"
+    volumes:
+      - ../data:/data
+      - whisper-models:/models/whisper
+      - huggingface-models:/models/huggingface
+      - torch-models:/models/torch
+      - ../src/api:/app
+    environment:
+      <<: *common-env
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
+      CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-0}
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      USE_LIBRETRANSLATE: ${USE_LIBRETRANSLATE:-true}
+      FLASK_ENV: ${FLASK_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      AUTO_START_MODULE: ${AUTO_START_MODULE:-}
+      SAVE_AUDIO: ${SAVE_AUDIO:-true}
+    depends_on:
+      - libretranslate
+    networks:
+      - transcriber-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Web UI - User interface
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-meeting-transcriber}-web
+    restart: ${RESTART_POLICY:-unless-stopped}
+    ports:
+      # Bind to localhost only
+      - "127.0.0.1:${WEB_UI_PORT:-8080}:5000"
+    volumes:
+      - ../data:/data
+      - whisper-models:/models/whisper
+      - huggingface-models:/models/huggingface
+      - torch-models:/models/torch
+      - ../src/web:/app
+    environment:
+      <<: *common-env
+      API_URL: http://api:8000
+      WEBSOCKET_URL: ws://localhost:${WEBSOCKET_PORT:-8765}
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      FLASK_ENV: ${FLASK_ENV:-production}
+    depends_on:
+      - api
+    networks:
+      - transcriber-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  whisper-models:
+    driver: local
+  huggingface-models:
+    driver: local
+  torch-models:
+    driver: local
+  libretranslate-models:
+    driver: local
+
+networks:
+  transcriber-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

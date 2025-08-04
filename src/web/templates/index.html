@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Meeting Transcriber</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        header h1 {
+            margin: 0;
+            color: #333;
+            display: inline-block;
+        }
+        
+        header p {
+            margin: 5px 0 0 0;
+            color: #666;
+        }
+        
+        /* WebSocket Status Indicator */
+        .ws-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+        }
+        
+        .ws-indicator .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f44336;
+            transition: all 0.3s;
+        }
+        
+        .ws-indicator.connected .status-dot {
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .quick-start {
+            background: #E3F2FD;
+            border: 2px solid #2196F3;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .auto-detected {
+            background: #E8F5E9;
+            border: 2px solid #4CAF50;
+        }
+        
+        .method-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .method-card.recommended {
+            border-color: #4CAF50;
+            background: #F1F8F4;
+        }
+        
+        .method-card.selected {
+            border-color: #2196F3;
+            background: #E3F2FD;
+            transform: scale(1.02);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .badge.success { background: #4CAF50; color: white; }
+        .badge.warning { background: #FF9800; color: white; }
+        .badge.error { background: #F44336; color: white; }
+        
+        .big-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            font-size: 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 20px 0;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        
+        .big-button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .big-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .simple-steps {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        
+        .simple-steps ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .simple-steps li {
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+        
+        .status-banner {
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 18px;
+        }
+        
+        .status-banner.success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status-banner.warning {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .device-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        
+        .device-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .device-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .device-item.selected {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .device-item.has-audio {
+            background: #e8f5e9;
+        }
+        
+        .device-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .device-details {
+            flex: 1;
+        }
+        
+        .device-controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1976D2;
+        }
+        
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #616161;
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #F44336;
+            color: white;
+        }
+        
+        .status-box {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        
+        .transcription-feed {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+        }
+        
+        .transcription-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .transcription-time {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .transcription-text {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .transcription-translation {
+            font-size: 13px;
+            color: #555;
+            font-style: italic;
+            padding-top: 5px;
+            border-top: 1px solid #eee;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .tab.active {
+            border-bottom-color: #2196F3;
+            color: #2196F3;
+            font-weight: 500;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .success { color: #4CAF50; }
+        .warning { color: #FF9800; }
+        .error { color: #F44336; }
+        
+        /* Settings Panel */
+        .settings-panel {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 10px 0;
+        }
+        
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .setting-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .setting-item label {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        /* Recording Timer */
+        .recording-timer {
+            background: #ff5252;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+            animation: recording-pulse 1.5s infinite;
+        }
+        
+        @keyframes recording-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Stats Display */
+        .stats-panel {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            align-items: center;
+        }
+        
+        .view-toggle label {
+            font-weight: 500;
+            margin-right: 10px;
+        }
+        
+        .view-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .view-btn.active {
+            background: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+        
+        /* Column View Styles */
+        .transcription-feed.column-view {
+            display: block;
+        }
+        
+        .transcription-item.column-layout {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr;
+            gap: 15px;
+            align-items: start;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        
+        .transcription-item.column-layout:hover {
+            background: #f5f5f5;
+        }
+        
+        .column-time {
+            color: #666;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .column-original {
+            padding-right: 10px;
+            border-right: 1px solid #eee;
+        }
+        
+        .column-translation {
+            padding-left: 10px;
+            color: #555;
+        }
+        
+        .column-header {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr;
+            gap: 15px;
+            padding: 10px 15px;
+            background: #e3f2fd;
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: #1976d2;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid #2196F3;
+        }
+        
+        .lang-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-right: 5px;
+            text-transform: uppercase;
+        }
+        
+        .lang-badge.pt {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <!-- WebSocket Status Indicator -->
+    <div class="ws-indicator" id="ws-indicator">
+        <div class="status-dot"></div>
+        <span id="ws-status-text">Disconnected</span>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🎙️ Meeting Transcriber</h1>
+            <p>Record, transcribe, and translate your meetings in real-time</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('quick-start')">Quick Start</div>
+            <div class="tab" onclick="switchTab('device-manager')">Device Manager</div>
+            <div class="tab" onclick="switchTab('transcriptions')">Transcriptions</div>
+        </div>
+
+        <!-- Quick Start Tab -->
+        <div id="quick-start-tab" class="tab-content active">
+            <!-- Auto-Detection Status -->
+            <div id="detection-status" class="status-banner">
+                🔍 Detecting available audio sources...
+            </div>
+
+            <!-- Quick Start for Detected Method -->
+            <div id="quick-start" class="quick-start auto-detected" style="display: none;">
+                <h2>✨ Quick Start</h2>
+                <p>Great news! Your system is ready.</p>
+                <button class="big-button" onclick="quickStart()">
+                    🎤 Start Recording Now
+                </button>
+            </div>
+
+            <!-- Manual Selection -->
+            <div id="manual-selection" style="display: none;">
+                <h2>Choose How to Capture Audio</h2>
+                <p>We've detected what will work on your system:</p>
+                
+                <div id="method-list">
+                    <!-- Dynamically populated -->
+                </div>
+                
+                <button id="start-button" class="big-button" disabled>
+                    Select an Audio Method Above
+                </button>
+            </div>
+
+            <!-- Simple Setup Instructions -->
+            <div id="setup-instructions" class="simple-steps" style="display: none;">
+                <h3>Setup Instructions</h3>
+                <div id="instructions-content"></div>
+            </div>
+        </div>
+
+        <!-- Device Manager Tab -->
+        <div id="device-manager-tab" class="tab-content">
+            <div class="panel">
+                <h2>🎤 Audio Device Manager</h2>
+                
+                <div class="device-controls">
+                    <button onclick="scanDevices()" class="btn btn-primary">
+                        🔍 Scan Windows Devices
+                    </button>
+                    <button onclick="testSelectedDevice()" class="btn btn-secondary">
+                        🧪 Test Selected Device
+                    </button>
+                    <button onclick="startWithDevice()" class="btn btn-success" id="device-start-btn" disabled>
+                        ▶️ Start Recording
+                    </button>
+                </div>
+                
+                <div id="device-list" class="device-list">
+                    <p style="text-align: center; color: #666; padding: 40px;">
+                        Click "Scan Windows Devices" to detect audio devices
+                    </p>
+                </div>
+                
+                <div id="device-status" class="status-box" style="display: none;">
+                    <h3>Device Test Results</h3>
+                    <div id="test-results"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transcriptions Tab -->
+        <div id="transcriptions-tab" class="tab-content">
+            <div class="panel">
+                <h2>📝 Live Transcriptions</h2>
+                
+                <div class="device-controls">
+                    <button onclick="clearTranscriptions()" class="btn btn-secondary">
+                        🗑️ Clear All
+                    </button>
+                    <button onclick="exportTranscriptions()" class="btn btn-primary">
+                        📥 Export
+                    </button>
+                    <button onclick="stopRecording()" class="btn btn-danger" id="stop-btn" style="display: none;">
+                        ⏹️ Stop Recording
+                    </button>
+                </div>
+                
+                <!-- View Toggle -->
+                <div class="view-toggle">
+                    <label>View:</label>
+                    <button class="view-btn active" id="timeline-view-btn" onclick="setView('timeline')">
+                        📅 Timeline
+                    </button>
+                    <button class="view-btn" id="column-view-btn" onclick="setView('column')">
+                        📊 Side-by-Side
+                    </button>
+                </div>
+                
+                <!-- Settings Panel -->
+                <div class="settings-panel" id="transcription-settings">
+                    <h4>Settings</h4>
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <input type="checkbox" id="auto-scroll" checked>
+                            <label for="auto-scroll">Auto-scroll to latest</label>
+                        </div>
+                        <div class="setting-item">
+                            <input type="checkbox" id="show-timestamps" checked>
+                            <label for="show-timestamps">Show timestamps</label>
+                        </div>
+                        <div class="setting-item">
+                            <input type="checkbox" id="show-translations" checked>
+                            <label for="show-translations">Show translations</label>
+                        </div>
+                        <div class="setting-item">
+                            <input type="number" id="max-items" value="50" min="10" max="200" style="width: 60px;">
+                            <label for="max-items">Max items</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Panel -->
+                <div class="stats-panel" id="transcription-stats" style="display: none;">
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-languages">0</div>
+                        <div class="stat-label">Languages</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-rate">0/min</div>
+                        <div class="stat-label">Rate</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-duration">00:00</div>
+                        <div class="stat-label">Duration</div>
+                    </div>
+                </div>
+                
+                <!-- Column Header (only shown in column view) -->
+                <div class="column-header" id="column-header" style="display: none;">
+                    <div>Time</div>
+                    <div>Original</div>
+                    <div>Translation</div>
+                </div>
+                
+                <div id="transcription-feed" class="transcription-feed">
+                    <p class="placeholder" style="text-align: center; color: #999;">
+                        Transcriptions will appear here when recording starts...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentView = 'timeline';
+        let selectedMethod = null;
+        let availableMethods = {};
+        let selectedDevice = null;
+        let detectedDevices = [];
+        let ws = null;
+        let isRecording = false;
+
+        // Transcription Statistics
+        let transcriptionStats = {
+            total: 0,
+            languages: new Set(),
+            startTime: null,
+            lastTime: null
+        };
+        
+        // Recording Timer
+        let recordingTimer = null;
+        let recordingStartTime = null;
+        
+        // Settings
+        let settings = {
+            autoScroll: true,
+            showTimestamps: true,
+            showTranslations: true,
+            maxItems: 50,
+            view: 'timeline'
+        };
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Auto-scan devices when switching to device manager
+            if (tabName === 'device-manager' && detectedDevices.length === 0) {
+                scanDevices();
+            }
+        }
+
+        // Set view function
+        function setView(view) {
+            currentView = view;
+            settings.view = view;
+            saveSettings();
+            
+            // Update buttons
+            document.getElementById('timeline-view-btn').classList.toggle('active', view === 'timeline');
+            document.getElementById('column-view-btn').classList.toggle('active', view === 'column');
+            
+            // Update feed class and header
+            const feed = document.getElementById('transcription-feed');
+            const header = document.getElementById('column-header');
+            
+            if (view === 'column') {
+                feed.classList.add('column-view');
+                header.style.display = 'grid';
+            } else {
+                feed.classList.remove('column-view');
+                header.style.display = 'none';
+            }
+            
+            // Re-render all transcriptions in new format
+            rerenderTranscriptions();
+        }
+
+        // Store all transcriptions for re-rendering
+        let allTranscriptions = [];
+
+        // Device Management Functions
+        async function scanDevices() {
+            const deviceList = document.getElementById('device-list');
+            deviceList.innerHTML = '<p style="text-align: center; padding: 40px;">Scanning devices...</p>';
+            
+            try {
+                const response = await fetch('/api/audio/scan-devices', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'  // This was missing!
+                    },
+                    body: JSON.stringify({})  // Send empty JSON body
+                });
+                
+                const data = await response.json();
+                detectedDevices = data.devices;
+                
+                // Display devices
+                deviceList.innerHTML = '';
+                
+                // Show message if present
+                if (data.message) {
+                    const msgDiv = document.createElement('div');
+                    msgDiv.style.cssText = 'padding: 15px; background: #fff3cd; color: #856404; border-radius: 4px; margin: 10px;';
+                    msgDiv.textContent = data.message;
+                    deviceList.appendChild(msgDiv);
+                }
+                
+                // Group devices by type
+                const inputDevices = detectedDevices.filter(d => d.is_input && !d.loopback);
+                const loopbackDevices = detectedDevices.filter(d => d.loopback);
+                
+                if (loopbackDevices.length > 0) {
+                    const header = document.createElement('h4');
+                    header.style.margin = '10px 15px';
+                    header.textContent = '🔄 Loopback Devices (System Audio)';
+                    deviceList.appendChild(header);
+                    
+                    loopbackDevices.forEach(device => {
+                        deviceList.appendChild(createDeviceElement(device));
+                    });
+                }
+                
+                if (inputDevices.length > 0) {
+                    const header = document.createElement('h4');
+                    header.style.margin = '20px 15px 10px';
+                    header.textContent = '🎤 Input Devices (Microphones)';
+                    deviceList.appendChild(header);
+                    
+                    inputDevices.forEach(device => {
+                        deviceList.appendChild(createDeviceElement(device));
+                    });
+                }
+                
+                if (detectedDevices.length === 0 && !data.message) {
+                    deviceList.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No devices found. Make sure Windows client is running.</p>';
+                }
+                
+                // Auto-select What U Hear if found
+                const whatUHear = detectedDevices.find(d => 
+                    d.name.includes('What U Hear') && d.channels > 0
+                );
+                if (whatUHear) {
+                    selectDevice(whatUHear);
+                }
+                
+            } catch (error) {
+                deviceList.innerHTML = `<p style="color: red; text-align: center; padding: 40px;">
+                    Error scanning devices: ${error.message}
+                </p>`;
+            }
+        }
+
+        function createDeviceElement(device) {
+            const item = document.createElement('div');
+            item.className = 'device-item';
+            if (device.loopback) item.className += ' loopback';
+            
+            item.innerHTML = `
+                <div class="device-info">
+                    <div class="device-details">
+                        <strong>[${device.index}] ${device.name}</strong><br>
+                        <small>
+                            Channels: ${device.channels}, 
+                            Rate: ${device.sample_rate}Hz
+                            ${device.loopback ? ' • 🔄 Loopback' : ' • 🎤 Input'}
+                        </small>
+                    </div>
+                    <button class="btn btn-secondary" onclick="testDevice(${device.index})">
+                        Test
+                    </button>
+                </div>
+            `;
+            
+            item.onclick = (e) => {
+                if (!e.target.classList.contains('btn')) {
+                    selectDevice(device, item);
+                }
+            };
+            
+            return item;
+        }
+
+        function selectDevice(device, element) {
+            selectedDevice = device;
+            
+            // Update UI
+            document.querySelectorAll('.device-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            if (element) {
+                element.classList.add('selected');
+            } else {
+                // Find element by device index
+                const items = document.querySelectorAll('.device-item');
+                const index = detectedDevices.findIndex(d => d.index === device.index);
+                if (items[index]) items[index].classList.add('selected');
+            }
+            
+            // Enable start button
+            document.getElementById('device-start-btn').disabled = false;
+            document.getElementById('device-start-btn').innerHTML = 
+                `▶️ Start Recording with ${device.name}`;
+        }
+
+        async function testDevice(deviceIndex) {
+            const device = detectedDevices.find(d => d.index === deviceIndex);
+            if (!device) return;
+            
+            const statusDiv = document.getElementById('device-status');
+            const resultsDiv = document.getElementById('test-results');
+            
+            statusDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<p>Testing device... Play some audio!</p>';
+            
+            try {
+                const response = await fetch('/api/audio/test-device', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        device_index: deviceIndex
+                    })
+                });
+                
+                const result = await response.json();
+                
+                resultsDiv.innerHTML = `
+                    <p><strong>Device:</strong> ${result.device_name}</p>
+                    <p><strong>Status:</strong> ${result.success ? '✅ Working' : '❌ Failed'}</p>
+                    <p><strong>Max Level:</strong> ${result.max_level || 0}</p>
+                    ${result.has_audio ? 
+                        '<p class="success">🔊 Audio detected!</p>' : 
+                        '<p class="warning">🔇 No audio detected (make sure audio is playing)</p>'}
+                    ${result.error ? `<p class="error">Error: ${result.error}</p>` : ''}
+                `;
+                
+                // Mark device if audio detected
+                if (result.has_audio) {
+                    const items = document.querySelectorAll('.device-item');
+                    const index = detectedDevices.findIndex(d => d.index === deviceIndex);
+                    if (items[index]) items[index].classList.add('has-audio');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="error">Test failed: ${error.message}</p>`;
+            }
+        }
+
+        async function testSelectedDevice() {
+            if (!selectedDevice) {
+                alert('Please select a device first');
+                return;
+            }
+            await testDevice(selectedDevice.index);
+        }
+
+        async function startWithDevice() {
+            if (!selectedDevice) {
+                alert('Please select a device first');
+                return;
+            }
+            
+            const response = await fetch('/api/audio/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    module: 'windows_capture',
+                    config: {
+                        capture_mode: 'device',
+                        device_index: selectedDevice.index,
+                        device_name: selectedDevice.name,
+                        sample_rate: selectedDevice.sample_rate || 48000
+                    }
+                })
+            });
+            
+            if (response.ok) {
+                isRecording = true;
+                switchTab('transcriptions');
+                document.getElementById('stop-btn').style.display = 'inline-block';
+                startRecordingTimer();
+                transcriptionStats = { total: 0, languages: new Set(), startTime: new Date() };
+            } else {
+                const error = await response.json();
+                alert('Failed to start recording: ' + (error.error || 'Unknown error'));
+            }
+        }
+
+        // WebSocket for live transcriptions
+        function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('WebSocket already connected');
+                return;
+            }
+            
+            ws = new WebSocket('ws://localhost:8765');
+            
+            ws.onopen = () => {
+                console.log('✅ WebSocket connected to transcription server');
+                updateWSStatus(true);
+                // Show status in UI
+                const placeholder = document.querySelector('.placeholder');
+                if (placeholder && !isRecording) {
+                    placeholder.textContent = '✅ Connected - Ready for transcriptions';
+                    placeholder.style.color = '#4CAF50';
+                }
+            };
+            
+            ws.onmessage = (event) => {
+                console.log('📝 Received transcription:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'transcription' || data.text) {
+                        addTranscription(data);
+                    }
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+                updateWSStatus(false);
+            };
+            
+            ws.onclose = () => {
+                console.log('❌ WebSocket disconnected');
+                updateWSStatus(false);
+                
+                // Always try to reconnect
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function updateWSStatus(connected) {
+            const indicator = document.getElementById('ws-indicator');
+            const statusText = document.getElementById('ws-status-text');
+            
+            if (connected) {
+                indicator.classList.add('connected');
+                statusText.textContent = 'Connected';
+            } else {
+                indicator.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        function addTranscription(data) {
+            console.log('Adding transcription to UI:', data);
+            
+            // Store the transcription
+            allTranscriptions.push({
+                ...data,
+                timestamp: data.timestamp || new Date().toISOString()
+            });
+            
+            // Keep only max items in storage
+            while (allTranscriptions.length > settings.maxItems) {
+                allTranscriptions.shift();
+            }
+            
+            // Update stats
+            transcriptionStats.total++;
+            transcriptionStats.languages.add(data.language || data.lang || 'unknown');
+            transcriptionStats.lastTime = new Date();
+            
+            if (!transcriptionStats.startTime) {
+                transcriptionStats.startTime = new Date();
+            }
+            
+            updateStats();
+            
+            const feed = document.getElementById('transcription-feed');
+            const placeholder = feed.querySelector('.placeholder');
+            if (placeholder) placeholder.remove();
+            
+            // Create item based on current view
+            const item = createTranscriptionItem(data);
+            feed.appendChild(item);
+            
+            // Keep only max items
+            while (feed.children.length > settings.maxItems) {
+                feed.removeChild(feed.firstChild);
+            }
+            
+            // Auto-scroll
+            if (settings.autoScroll) {
+                feed.scrollTop = feed.scrollHeight;
+            }
+        }
+
+        // Create transcription item based on view
+        function createTranscriptionItem(data) {
+            const item = document.createElement('div');
+            item.className = 'transcription-item';
+            
+            const time = data.timestamp ? 
+                new Date(data.timestamp).toLocaleTimeString() : 
+                new Date().toLocaleTimeString();
+            
+            const language = data.language || data.lang || 'unknown';
+            
+            if (currentView === 'column') {
+                item.className += ' column-layout';
+                
+                let html = `
+                    <div class="column-time">${time}</div>
+                    <div class="column-original">
+                        <span class="lang-badge ${language}">${language}</span>
+                        ${data.text}
+                    </div>
+                    <div class="column-translation">
+                        ${data.translation || '<span style="color: #ccc;">No translation</span>'}
+                    </div>
+                `;
+                
+                item.innerHTML = html;
+            } else {
+                // Timeline view
+                let html = '';
+                
+                if (settings.showTimestamps) {
+                    html += `<div class="transcription-time">${time}</div>`;
+                }
+                
+                html += `
+                    <div class="transcription-text">
+                        <strong>[${language.toUpperCase()}]</strong> ${data.text}
+                    </div>
+                `;
+                
+                if (settings.showTranslations && data.translation) {
+                    html += `
+                        <div class="transcription-translation">
+                            <strong>[Translation]</strong> ${data.translation}
+                        </div>
+                    `;
+                }
+                
+                item.innerHTML = html;
+            }
+            
+            return item;
+        }
+
+        // Re-render all transcriptions when view changes
+        function rerenderTranscriptions() {
+            const feed = document.getElementById('transcription-feed');
+            
+            // Clear current items
+            feed.innerHTML = '';
+            
+            if (allTranscriptions.length === 0) {
+                feed.innerHTML = '<p class="placeholder" style="text-align: center; color: #999;">No transcriptions yet</p>';
+                return;
+            }
+            
+            // Re-add all items in new format
+            allTranscriptions.forEach(data => {
+                const item = createTranscriptionItem(data);
+                feed.appendChild(item);
+            });
+            
+            // Auto-scroll
+            if (settings.autoScroll) {
+                feed.scrollTop = feed.scrollHeight;
+            }
+        }
+
+        function clearTranscriptions() {
+            const feed = document.getElementById('transcription-feed');
+            feed.innerHTML = '<p class="placeholder" style="text-align: center; color: #999;">Transcriptions cleared</p>';
+            allTranscriptions = [];
+            transcriptionStats = { total: 0, languages: new Set(), startTime: null, lastTime: null };
+            updateStats();
+        }
+
+        function exportTranscriptions() {
+            let text = 'Meeting Transcription Export\n';
+            text += `Date: ${new Date().toLocaleString()}\n`;
+            text += `Format: ${currentView === 'column' ? 'Side-by-Side' : 'Timeline'}\n\n`;
+            
+            if (currentView === 'column') {
+                text += 'Time\t\tOriginal\t\tTranslation\n';
+                text += '=' .repeat(80) + '\n';
+                
+                allTranscriptions.forEach(data => {
+                    const time = new Date(data.timestamp).toLocaleTimeString();
+                    const lang = data.language || data.lang || 'unknown';
+                    text += `${time}\t[${lang.toUpperCase()}] ${data.text}\t${data.translation || 'No translation'}\n`;
+                });
+            } else {
+                allTranscriptions.forEach(data => {
+                    const time = new Date(data.timestamp).toLocaleTimeString();
+                    const lang = data.language || data.lang || 'unknown';
+                    text += `[${time}] [${lang.toUpperCase()}] ${data.text}\n`;
+                    if (data.translation) {
+                        text += `   [Translation] ${data.translation}\n`;
+                    }
+                    text += '\n';
+                });
+            }
+            
+            // Download as text file
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcription_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function stopRecording() {
+            await fetch('/api/audio/stop', { method: 'POST' });
+            isRecording = false;
+            document.getElementById('stop-btn').style.display = 'none';
+            stopRecordingTimer();
+        }
+
+        // Settings functions
+        function loadSettings() {
+            const saved = localStorage.getItem('transcriptionSettings');
+            if (saved) {
+                settings = { ...settings, ...JSON.parse(saved) };
+                // Apply to UI
+                document.getElementById('auto-scroll').checked = settings.autoScroll;
+                document.getElementById('show-timestamps').checked = settings.showTimestamps;
+                document.getElementById('show-translations').checked = settings.showTranslations;
+                document.getElementById('max-items').value = settings.maxItems;
+                
+                // Apply view setting
+                if (settings.view) {
+                    setView(settings.view);
+                }
+            }
+        }
+        
+        function saveSettings() {
+            settings.autoScroll = document.getElementById('auto-scroll').checked;
+            settings.showTimestamps = document.getElementById('show-timestamps').checked;
+            settings.showTranslations = document.getElementById('show-translations').checked;
+            settings.maxItems = parseInt(document.getElementById('max-items').value);
+            localStorage.setItem('transcriptionSettings', JSON.stringify(settings));
+        }
+
+        // Stats functions
+        function updateStats() {
+            document.getElementById('stat-total').textContent = transcriptionStats.total;
+            document.getElementById('stat-languages').textContent = transcriptionStats.languages.size;
+            
+            // Calculate rate
+            if (transcriptionStats.startTime) {
+                const duration = (new Date() - transcriptionStats.startTime) / 1000 / 60; // minutes
+                const rate = duration > 0 ? Math.round(transcriptionStats.total / duration) : 0;
+                document.getElementById('stat-rate').textContent = `${rate}/min`;
+                
+                // Update duration
+                const hours = Math.floor(duration / 60);
+                const minutes = Math.floor(duration % 60);
+                document.getElementById('stat-duration').textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            }
+            
+            // Show stats panel if we have data
+            if (transcriptionStats.total > 0) {
+                document.getElementById('transcription-stats').style.display = 'grid';
+            }
+        }
+
+        // Timer functions
+        function startRecordingTimer() {
+            recordingStartTime = new Date();
+            updateRecordingTimer();
+            recordingTimer = setInterval(updateRecordingTimer, 1000);
+            
+            // Add timer to UI
+            const stopBtn = document.getElementById('stop-btn');
+            if (stopBtn && !document.getElementById('recording-timer')) {
+                const timer = document.createElement('span');
+                timer.id = 'recording-timer';
+                timer.className = 'recording-timer';
+                stopBtn.parentNode.insertBefore(timer, stopBtn.nextSibling);
+            }
+        }
+        
+        function updateRecordingTimer() {
+            if (!recordingStartTime) return;
+            
+            const elapsed = Math.floor((new Date() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            
+            const timer = document.getElementById('recording-timer');
+            if (timer) {
+                timer.textContent = `🔴 ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+        
+        function stopRecordingTimer() {
+            if (recordingTimer) {
+                clearInterval(recordingTimer);
+                recordingTimer = null;
+            }
+            recordingStartTime = null;
+            
+            const timer = document.getElementById('recording-timer');
+            if (timer) {
+                timer.remove();
+            }
+        }
+
+        // Original quick start functions
+        window.onload = async function() {
+            // Connect WebSocket for transcriptions
+            connectWebSocket();
+            
+            // Load settings
+            loadSettings();
+            
+            try {
+                const response = await fetch('/api/audio/detect');
+                const data = await response.json();
+                
+                availableMethods = data.modules;
+                
+                const readyMethod = Object.entries(availableMethods)
+                    .find(([id, info]) => info.status === 'available' && info.auto_score > 10);
+                
+                if (readyMethod) {
+                    showQuickStart(readyMethod[0], readyMethod[1]);
+                } else {
+                    showManualSelection();
+                }
+                
+            } catch (error) {
+                document.getElementById('detection-status').innerHTML = 
+                    '❌ Could not connect to server. Make sure Docker is running.';
+                document.getElementById('detection-status').className = 'status-banner warning';
+            }
+        };
+
+        function showQuickStart(methodId, methodInfo) {
+            document.getElementById('detection-status').style.display = 'none';
+            document.getElementById('quick-start').style.display = 'block';
+            
+            const quickStart = document.getElementById('quick-start');
+            quickStart.innerHTML = `
+                <h2>✨ Quick Start - ${methodInfo.name} Detected!</h2>
+                <p>${methodInfo.description}</p>
+                <button class="big-button" onclick="quickStart('${methodId}')">
+                    🎤 Start Recording Now
+                </button>
+                <p style="text-align: center; margin-top: 10px;">
+                    <a href="#" onclick="showManualSelection(); return false;">
+                        Or choose a different method
+                    </a>
+                </p>
+            `;
+        }
+
+        function showManualSelection() {
+            document.getElementById('detection-status').style.display = 'none';
+            document.getElementById('quick-start').style.display = 'none';
+            document.getElementById('manual-selection').style.display = 'block';
+            
+            const methodList = document.getElementById('method-list');
+            methodList.innerHTML = '';
+            
+            const sorted = Object.entries(availableMethods)
+                .sort((a, b) => (b[1].auto_score || 0) - (a[1].auto_score || 0));
+            
+            sorted.forEach(([id, info]) => {
+                const card = document.createElement('div');
+                card.className = 'method-card';
+                if (info.auto_score > 70) card.className += ' recommended';
+                
+                card.innerHTML = `
+                    <h3>
+                        ${info.name}
+                        <span class="badge ${info.badge_color}">${info.badge}</span>
+                    </h3>
+                    <p>${info.description}</p>
+                    ${info.status === 'needs_setup' ? 
+                        '<p style="color: #FF9800;">⚙️ Requires quick setup (instructions provided)</p>' : ''}
+                `;
+                
+                card.onclick = () => selectMethod(id, info);
+                methodList.appendChild(card);
+            });
+        }
+
+        function selectMethod(methodId, methodInfo) {
+            selectedMethod = methodId;
+            
+            // Fix: Don't use event.currentTarget, find the clicked card
+            document.querySelectorAll('.method-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Find and select the card
+            const cards = document.querySelectorAll('.method-card');
+            cards.forEach((card, index) => {
+                if (card.onclick && card.onclick.toString().includes(methodId)) {
+                    card.classList.add('selected');
+                }
+            });
+            
+            const startBtn = document.getElementById('start-button');
+            startBtn.disabled = false;
+            startBtn.innerHTML = `🎤 Start Recording with ${methodInfo.name}`;
+            startBtn.onclick = () => startWithMethod(methodId);
+        }
+
+        async function quickStart(methodId) {
+            selectedMethod = methodId || Object.keys(availableMethods)[0];
+            await startRecording();
+        }
+
+        async function startWithMethod(methodId) {
+            selectedMethod = methodId;
+            await startRecording();
+        }
+
+        async function startRecording() {
+            try {
+                const response = await fetch('/api/audio/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        module: selectedMethod,
+                        config: availableMethods[selectedMethod].config || {}
+                    })
+                });
+                
+                if (response.ok) {
+                    isRecording = true;
+                    switchTab('transcriptions');
+                    document.getElementById('stop-btn').style.display = 'inline-block';
+                    startRecordingTimer();
+                    transcriptionStats = { total: 0, languages: new Set(), startTime: new Date() };
+                } else {
+                    alert('Failed to start recording. Check the logs.');
+                }
+                
+            } catch (error) {
+                alert('Error starting recording: ' + error.message);
+            }
+        }
+
+        // Settings event listeners
+        document.getElementById('auto-scroll').addEventListener('change', saveSettings);
+        document.getElementById('show-timestamps').addEventListener('change', saveSettings);
+        document.getElementById('show-translations').addEventListener('change', saveSettings);
+        document.getElementById('max-items').addEventListener('change', saveSettings);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + S to start/stop recording
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (isRecording) {
+                    stopRecording();
+                } else if (selectedMethod) {
+                    startRecording();
+                }
+            }
+            
+            // Ctrl/Cmd + E to export
+            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                e.preventDefault();
+                exportTranscriptions();
+            }
+            
+            // Ctrl/Cmd + L to clear
+            if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+                e.preventDefault();
+                if (confirm('Clear all transcriptions?')) {
+                    clearTranscriptions();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

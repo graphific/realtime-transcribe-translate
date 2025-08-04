@@ -1,0 +1,33 @@
+# Web framework
+flask==3.0.3
+flask-cors==4.0.0
+
+# WebSocket support
+websockets==12.0
+aiohttp==3.9.1
+
+# Audio processing
+numpy==1.24.3
+scipy==1.11.4
+soundfile==0.12.1
+pydub==0.25.1
+
+# Speech recognition
+openai-whisper==20231117
+silero-vad
+# Note: faster-whisper is optional, remove if not needed
+
+# Translation
+googletrans==4.0.0-rc1
+deep-translator==1.11.4
+
+# Utilities
+requests==2.31.0
+python-dotenv==1.0.0
+psutil==5.9.6
+
+# Development (optional)
+# pytest==7.4.3
+# pytest-asyncio==0.21.1
+# black==23.11.0
+# flake8==6.1.0

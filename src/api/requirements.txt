@@ -1,0 +1,15 @@
+# Core dependencies
+flask==3.0.3
+flask-cors==4.0.0
+websockets==12.0
+aiohttp==3.9.1
+numpy==1.24.3
+requests==2.31.0
+scipy==1.11.4
+
+# Audio processing
+faster-whisper==0.10.0
+silero-vad==4.0.0
+
+# Note: PyTorch should be installed separately with:
+# pip install torch==2.0.1 --index-url https://download.pytorch.org/whl/cpu
